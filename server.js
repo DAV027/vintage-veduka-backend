@@ -7,7 +7,17 @@ const paymentRoutes = require('./routes/payment');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://vintageveduka.com",
+    "https://www.vintageveduka.com",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500"
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Serve the static frontend (project root)
