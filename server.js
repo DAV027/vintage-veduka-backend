@@ -23,3 +23,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Vintage Veduka backend listening on http://localhost:${PORT}`);
 });
+
+app.get("/", (req, res) => {
+    res.send("Vintage Veduka Backend is Running 🚀");
+});
