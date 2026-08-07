@@ -1,16 +1,36 @@
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+const nodemailer = require("nodemailer");
+require("dotenv").config();
 
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // SSL
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
   },
+
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+
+  tls: {
+    rejectUnauthorized: false,
+  },
+});
+
+// Verify SMTP connection when server starts
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ SMTP Connection Failed");
+    console.error(error);
+  } else {
+    console.log("✅ Gmail SMTP Connected");
+  }
 });
 
 function buildReceiptHtml(booking) {
