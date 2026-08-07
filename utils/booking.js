@@ -2,6 +2,8 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'bookings.json');
+const COUNTER_PATH = path.join(__dirname, '..', 'data', 'booking-counter.json');
+const LOCK_PATH = path.join(__dirname, '..', 'data', '.booking-id.lock');
 
 async function readAll() {
   try {
@@ -28,20 +30,62 @@ function padNumber(num, size) {
   return s;
 }
 
-exports.generateBookingId = () => {
-  // Read file synchronously enough by loading existing and counting
-  // This returns the next ID string like VV000001
-  return (async () => {
-    const items = await readAll();
-    const last = items
-      .map((b) => b.bookingId)
-      .filter(Boolean)
-      .map((id) => Number(id.replace(/^VV0*/, '') || 0))
-      .sort((a, b) => a - b)
-      .pop() || 0;
-    const next = last + 1;
-    return 'VV' + padNumber(next, 6);
-  })();
+async function acquireBookingIdLock() {
+  try {
+    await fs.writeFile(LOCK_PATH, process.pid.toString(), { flag: 'wx' });
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return acquireBookingIdLock();
+    }
+    throw err;
+  }
+}
+
+async function releaseBookingIdLock() {
+  try {
+    await fs.unlink(LOCK_PATH);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+}
+
+async function readCounter() {
+  try {
+    const content = await fs.readFile(COUNTER_PATH, 'utf8');
+    return Number(JSON.parse(content).next || 1);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      await fs.mkdir(path.dirname(COUNTER_PATH), { recursive: true });
+      await fs.writeFile(COUNTER_PATH, JSON.stringify({ next: 1 }), 'utf8');
+      return 1;
+    }
+    throw err;
+  }
+}
+
+async function writeCounter(next) {
+  await fs.mkdir(path.dirname(COUNTER_PATH), { recursive: true });
+  await fs.writeFile(COUNTER_PATH, JSON.stringify({ next }), 'utf8');
+}
+
+async function reserveBookingId() {
+  const nextNumber = await readCounter();
+  const bookingId = 'VV' + padNumber(nextNumber, 6);
+  await writeCounter(nextNumber + 1);
+  return bookingId;
+}
+
+exports.generateBookingId = async () => {
+  const acquired = await acquireBookingIdLock();
+  if (!acquired) return exports.generateBookingId();
+
+  try {
+    return await reserveBookingId();
+  } finally {
+    await releaseBookingIdLock();
+  }
 };
 
 exports.saveDraft = async (draft) => {
@@ -74,14 +118,3 @@ exports.getByBookingId = async (bookingId) => {
   return items.find((i) => i.bookingId === bookingId) || null;
 };
 
-// helper to generate and return booking id synchronously as Promise
-exports.generateBookingId = async () => {
-  const items = await readAll();
-  const numeric = items
-    .map((b) => b.bookingId)
-    .filter(Boolean)
-    .map((id) => Number(id.replace(/^VV0*/, '') || 0));
-  const last = numeric.length ? Math.max(...numeric) : 0;
-  const next = last + 1;
-  return 'VV' + padNumber(next, 6);
-};

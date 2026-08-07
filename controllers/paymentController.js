@@ -76,9 +76,10 @@ exports.createOrder = async (req, res) => {
       req.end();
     });
 
-    // Save booking draft
+    // Save booking draft with a reserved booking ID immediately
+    const bookingId = await bookingUtil.generateBookingId();
     const draft = {
-      bookingId: null,
+      bookingId,
       fullName,
       email,
       phone,
@@ -128,11 +129,9 @@ exports.verifyPayment = async (req, res) => {
     const booking = await bookingUtil.getByOrderId(razorpay_order_id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const bookingId = bookingUtil.generateBookingId();
     const updated = {
       paymentId: razorpay_payment_id,
       paymentStatus: 'paid',
-      bookingId,
       bookingDate: toIstIso(new Date()),
     };
 
@@ -174,11 +173,9 @@ exports.debugVerify = async (req, res) => {
     const booking = await bookingUtil.getByOrderId(razorpay_order_id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const bookingId = await bookingUtil.generateBookingId();
     const updated = {
       paymentId: razorpay_payment_id,
       paymentStatus: 'paid',
-      bookingId,
       bookingDate: toIstIso(new Date()),
     };
 
