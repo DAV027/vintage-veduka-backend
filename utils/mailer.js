@@ -7,29 +7,20 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // SSL
+  port: 587,
+  secure: false,
+  requireTLS: true,
   auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
-
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-
-  tls: {
-    rejectUnauthorized: false,
-  },
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
-// Verify SMTP connection when server starts
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("❌ SMTP Connection Failed");
-    console.error(error);
+transporter.verify((err, success) => {
+  if (err) {
+    console.log("SMTP Error:", err);
   } else {
-    console.log("✅ Gmail SMTP Connected");
+    console.log("SMTP Connected");
   }
 });
 
