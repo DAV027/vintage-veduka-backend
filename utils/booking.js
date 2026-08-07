@@ -5,6 +5,29 @@ const DATA_PATH = path.join(__dirname, '..', 'data', 'bookings.json');
 const COUNTER_PATH = path.join(__dirname, '..', 'data', 'booking-counter.json');
 const LOCK_PATH = path.join(__dirname, '..', 'data', '.booking-id.lock');
 
+function normalizeBookingRecord(booking, defaults = {}) {
+  if (!booking || typeof booking !== 'object') return {};
+
+  const normalized = {
+    ...booking,
+    fullName: booking.fullName || defaults.fullName || '',
+    email: booking.email || defaults.email || '',
+    phone: booking.phone || defaults.phone || '',
+    adults: Number(booking.adults ?? defaults.adults ?? 0),
+    children: Number(booking.children ?? defaults.children ?? 0),
+    amount: Number(booking.amount ?? defaults.amount ?? 0),
+    bookingId: booking.bookingId || defaults.bookingId || null,
+    orderId: booking.orderId || defaults.orderId || null,
+    paymentId: booking.paymentId || defaults.paymentId || null,
+    paymentStatus: booking.paymentStatus || defaults.paymentStatus || 'created',
+    bookingDate: booking.bookingDate || defaults.bookingDate || null,
+    eventDate: booking.eventDate ?? defaults.eventDate ?? '22 August',
+    venue: booking.venue ?? defaults.venue ?? 'SK Retreat Farmstay',
+  };
+
+  return normalized;
+}
+
 async function readAll() {
   try {
     const content = await fs.readFile(DATA_PATH, 'utf8');
@@ -90,31 +113,47 @@ exports.generateBookingId = async () => {
 
 exports.saveDraft = async (draft) => {
   const items = await readAll();
-  items.push(draft);
+  const normalizedDraft = normalizeBookingRecord(draft, {
+    eventDate: '22 August',
+    venue: 'SK Retreat Farmstay',
+  });
+  items.push(normalizedDraft);
   await writeAll(items);
-  return draft;
+  return normalizedDraft;
 };
 
 exports.getByOrderId = async (orderId) => {
   const items = await readAll();
-  return items.find((i) => i.orderId === orderId) || null;
+  const booking = items.find((i) => i.orderId === orderId) || null;
+  return booking ? normalizeBookingRecord(booking, {
+    eventDate: '22 August',
+    venue: 'SK Retreat Farmstay',
+  }) : null;
 };
 
 exports.updateByOrderId = async (orderId, updates) => {
   const items = await readAll();
   const idx = items.findIndex((i) => i.orderId === orderId);
   if (idx === -1) return null;
-  items[idx] = Object.assign({}, items[idx], updates);
-  // Ensure bookingId exists: if updates.bookingId is a Promise (from generateBookingId), await it
-  if (items[idx].bookingId && typeof items[idx].bookingId.then === 'function') {
-    items[idx].bookingId = await items[idx].bookingId;
-  }
+  const existing = items[idx] || {};
+  const merged = Object.assign({}, existing, updates);
+  const normalized = normalizeBookingRecord(merged, {
+    eventDate: existing.eventDate ?? '22 August',
+    venue: existing.venue ?? 'SK Retreat Farmstay',
+  });
+  items[idx] = normalized;
   await writeAll(items);
   return items[idx];
 };
 
 exports.getByBookingId = async (bookingId) => {
   const items = await readAll();
-  return items.find((i) => i.bookingId === bookingId) || null;
+  const booking = items.find((i) => i.bookingId === bookingId) || null;
+  return booking ? normalizeBookingRecord(booking, {
+    eventDate: '22 August',
+    venue: 'SK Retreat Farmstay',
+  }) : null;
 };
+
+exports.normalizeBookingRecord = normalizeBookingRecord;
 

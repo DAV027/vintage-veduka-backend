@@ -136,18 +136,22 @@ exports.verifyPayment = async (req, res) => {
     };
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
+    const finalizedBooking = bookingUtil.normalizeBookingRecord(saved, {
+      eventDate: '22 August',
+      venue: 'SK Retreat Farmstay',
+    });
 
     // Send follow-up communications in the background so the client gets a fast success response.
     setImmediate(() => {
-      mailer.sendCustomerReceipt(saved).catch((mailErr) => {
+      mailer.sendCustomerReceipt(finalizedBooking).catch((mailErr) => {
         console.error('Mail error', mailErr);
       });
-      mailer.sendAdminNotification(saved).catch((mailErr) => {
+      mailer.sendAdminNotification(finalizedBooking).catch((mailErr) => {
         console.error('Mail error', mailErr);
       });
     });
 
-    res.json({ success: true, bookingId: saved.bookingId, booking: saved });
+    res.json({ success: true, bookingId: finalizedBooking.bookingId, booking: finalizedBooking });
   } catch (err) {
     console.error('verifyPayment error', err);
     res.status(500).json({ error: 'Payment verification failed' });
@@ -182,17 +186,21 @@ exports.debugVerify = async (req, res) => {
     };
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
+    const finalizedBooking = bookingUtil.normalizeBookingRecord(saved, {
+      eventDate: '22 August',
+      venue: 'SK Retreat Farmstay',
+    });
 
     setImmediate(() => {
-      mailer.sendCustomerReceipt(saved).catch((mailErr) => {
+      mailer.sendCustomerReceipt(finalizedBooking).catch((mailErr) => {
         console.error('Mail error (debugVerify)', mailErr);
       });
-      mailer.sendAdminNotification(saved).catch((mailErr) => {
+      mailer.sendAdminNotification(finalizedBooking).catch((mailErr) => {
         console.error('Mail error (debugVerify)', mailErr);
       });
     });
 
-    res.json({ success: true, bookingId: saved.bookingId, generatedSignature });
+    res.json({ success: true, bookingId: finalizedBooking.bookingId, generatedSignature });
   } catch (err) {
     console.error('debugVerify error', err);
     res.status(500).json({ error: 'Debug verify failed' });
@@ -217,7 +225,12 @@ exports.getReceipt = async (req, res) => {
     const booking = await bookingUtil.getByBookingId(bookingId);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const pdfBuffer = await pdfGenerator.generateReceiptPdf(booking);
+    const normalizedBooking = bookingUtil.normalizeBookingRecord(booking, {
+      eventDate: '22 August',
+      venue: 'SK Retreat Farmstay',
+    });
+
+    const pdfBuffer = await pdfGenerator.generateReceiptPdf(normalizedBooking);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="VintageVeduka_Receipt_${bookingId}.pdf"`);
     res.send(pdfBuffer);
