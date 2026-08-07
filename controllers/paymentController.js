@@ -212,6 +212,9 @@ exports.getBooking = async (req, res) => {
     const { bookingId } = req.params;
     const booking = await bookingUtil.getByBookingId(bookingId);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.json(booking);
   } catch (err) {
     console.error('getBooking error', err);
@@ -231,6 +234,9 @@ exports.getReceipt = async (req, res) => {
     });
 
     const pdfBuffer = await pdfGenerator.generateReceiptPdf(normalizedBooking);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="VintageVeduka_Receipt_${bookingId}.pdf"`);
     res.send(pdfBuffer);
