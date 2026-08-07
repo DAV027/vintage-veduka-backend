@@ -137,13 +137,15 @@ exports.verifyPayment = async (req, res) => {
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
 
-    // Send emails
-    try {
-      await mailer.sendCustomerReceipt(saved);
-      await mailer.sendAdminNotification(saved);
-    } catch (mailErr) {
-      console.error('Mail error', mailErr);
-    }
+    // Send follow-up communications in the background so the client gets a fast success response.
+    setImmediate(() => {
+      mailer.sendCustomerReceipt(saved).catch((mailErr) => {
+        console.error('Mail error', mailErr);
+      });
+      mailer.sendAdminNotification(saved).catch((mailErr) => {
+        console.error('Mail error', mailErr);
+      });
+    });
 
     res.json({ success: true, bookingId: saved.bookingId, booking: saved });
   } catch (err) {
@@ -181,12 +183,14 @@ exports.debugVerify = async (req, res) => {
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
 
-    try {
-      await mailer.sendCustomerReceipt(saved);
-      await mailer.sendAdminNotification(saved);
-    } catch (mailErr) {
-      console.error('Mail error (debugVerify)', mailErr);
-    }
+    setImmediate(() => {
+      mailer.sendCustomerReceipt(saved).catch((mailErr) => {
+        console.error('Mail error (debugVerify)', mailErr);
+      });
+      mailer.sendAdminNotification(saved).catch((mailErr) => {
+        console.error('Mail error (debugVerify)', mailErr);
+      });
+    });
 
     res.json({ success: true, bookingId: saved.bookingId, generatedSignature });
   } catch (err) {
