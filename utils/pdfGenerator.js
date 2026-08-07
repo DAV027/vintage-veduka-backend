@@ -1,5 +1,6 @@
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
+const { formatIstDateTime } = require('./time');
 
 const logoHeight = 40;
 const pageMargins = { top: 72, bottom: 72, left: 56, right: 56 };
@@ -108,7 +109,7 @@ async function generateReceiptPdf(booking) {
       currentY += 18;
       addKeyValue(doc, 'Payment ID:', booking.paymentId || '--', currentY);
       currentY += 18;
-      addKeyValue(doc, 'Booking Date:', new Date(booking.bookingDate).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }), currentY);
+      addKeyValue(doc, 'Booking Date:', formatIstDateTime(booking.bookingDate), currentY);
       currentY += 30;
 
       drawSectionTitle(doc, currentY, 'Event Information');

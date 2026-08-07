@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const { formatIstDateTime } = require('./time');
 require("dotenv").config();
 
 const EMAIL_USER = process.env.EMAIL_USER;
@@ -25,7 +26,7 @@ transporter.verify((err, success) => {
 });
 
 function buildReceiptHtml(booking) {
-  const bookingDate = new Date(booking.bookingDate).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const bookingDate = formatIstDateTime(booking.bookingDate);
   return `
   <body style="margin:0;padding:0;background-color:#f7e8d0;font-family:Arial,Helvetica,sans-serif;color:#3f2a1a;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -150,7 +151,7 @@ exports.sendAdminNotification = async (booking) => {
           ${buildKeyValueRow('Venue', booking.venue)}
           ${buildKeyValueRow('Payment ID', booking.paymentId)}
           ${buildKeyValueRow('Order ID', booking.orderId)}
-          ${buildKeyValueRow('Booking Date', new Date(booking.bookingDate).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}
+          ${buildKeyValueRow('Booking Date', formatIstDateTime(booking.bookingDate))}
         </table>
       </div>
     `,

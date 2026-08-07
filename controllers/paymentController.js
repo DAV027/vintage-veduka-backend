@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const bookingUtil = require('../utils/booking');
 const mailer = require('../utils/mailer');
 const pdfGenerator = require('../utils/pdfGenerator');
+const { toIstIso } = require('../utils/time');
 const https = require('https');
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
@@ -132,7 +133,7 @@ exports.verifyPayment = async (req, res) => {
       paymentId: razorpay_payment_id,
       paymentStatus: 'paid',
       bookingId,
-      bookingDate: new Date().toISOString(),
+      bookingDate: toIstIso(new Date()),
     };
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
@@ -178,7 +179,7 @@ exports.debugVerify = async (req, res) => {
       paymentId: razorpay_payment_id,
       paymentStatus: 'paid',
       bookingId,
-      bookingDate: new Date().toISOString(),
+      bookingDate: toIstIso(new Date()),
     };
 
     const saved = await bookingUtil.updateByOrderId(razorpay_order_id, updated);
