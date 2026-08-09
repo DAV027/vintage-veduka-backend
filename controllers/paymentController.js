@@ -178,27 +178,35 @@ exports.verifyPayment = async (req, res) => {
       return res.json({ success: true, bookingId: finalized.bookingId, booking: finalized, duplicate: true });
     }
 
-    // Verify payment against Razorpay Orders API (server-side amount verification)
+    // Verify payment against Razorpay Orders API (server-side amount + capture verification).
+    // NOTE: Razorpay's GET /v1/orders/:id does NOT include a `payments` array by default.
+    // We must call GET /v1/orders/:id/payments as a separate request.
     try {
       const orderDetail = await razorpayRequest({ method: 'GET', path: `/v1/orders/${razorpay_order_id}` }, '');
       const expectedPaise = booking.amount * 100;
       if (Number(orderDetail.amount) !== expectedPaise) {
-        console.error('verifyPayment: amount mismatch', orderDetail.amount, expectedPaise);
+        console.error('verifyPayment: amount mismatch', { orderAmount: orderDetail.amount, expected: expectedPaise });
         return res.status(400).json({ error: 'Payment amount mismatch.' });
       }
-      if (!orderDetail.payments || !Array.isArray(orderDetail.payments.entities)) {
-        console.error('verifyPayment: order payments not found');
-        return res.status(400).json({ error: 'Payment verification failed.' });
+      if (orderDetail.status !== 'paid') {
+        console.error('verifyPayment: order not marked paid, status=', orderDetail.status);
+        return res.status(400).json({ error: 'Payment not captured.' });
       }
-      const paymentEntity = orderDetail.payments.entities.find(
+
+      // Fetch payments for the order from the dedicated endpoint.
+      const paymentsResp = await razorpayRequest({ method: 'GET', path: `/v1/orders/${razorpay_order_id}/payments` }, '');
+      const paymentEntities = (paymentsResp && Array.isArray(paymentsResp.items)) ? paymentsResp.items : [];
+      const paymentEntity = paymentEntities.find(
         (p) => p.id === razorpay_payment_id && p.status === 'captured'
       );
       if (!paymentEntity) {
-        console.error('verifyPayment: payment not captured for', razorpay_payment_id);
+        console.error('verifyPayment: captured payment not found', { razorpay_payment_id, count: paymentEntities.length });
         return res.status(400).json({ error: 'Payment not captured.' });
       }
     } catch (verifyErr) {
-      console.error('verifyPayment: Razorpay order fetch failed:', verifyErr.message || verifyErr);
+      const status = verifyErr && verifyErr.status;
+      const body = verifyErr && verifyErr.body;
+      console.error('verifyPayment: Razorpay order fetch failed:', { status, body: body || (verifyErr.message || verifyErr) });
       return res.status(400).json({ error: 'Could not verify payment with gateway.' });
     }
 
