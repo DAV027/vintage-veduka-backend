@@ -1,29 +1,100 @@
-const nodemailer = require("nodemailer");
-const { formatIstDateTime } = require('./time');
-require("dotenv").config();
+const nodemailer = require('nodemailer')
+const { formatIstDateTime } = require('./time')
+require('dotenv').config()
 
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const EMAIL_USER = process.env.EMAIL_USER
+const EMAIL_PASS = process.env.EMAIL_PASS
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
-const transporter = nodemailer.createTransport({
-    service: "gmail",
+const RESEND_API_KEY = process.env.RESEND_API_KEY
+const RESEND_FROM = process.env.RESEND_FROM || 'Vintage Veduka <booking@vintageveduka.com>'
+
+let transporter = null
+
+function buildSmtpTransport() {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+      user: EMAIL_USER,
+      pass: EMAIL_PASS,
+    },
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 30000,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 50,
+  })
+}
 
-transporter.verify((err, success) => {
-  if (err) {
-    console.log("SMTP Error:", err);
-  } else {
-    console.log("SMTP Connected");
+function getTransporter() {
+  if (transporter) return transporter
+  if (RESEND_API_KEY) return null
+  if (!EMAIL_USER || !EMAIL_PASS) return null
+  transporter = buildSmtpTransport()
+  return transporter
+}
+
+async function verifyTransporter() {
+  const t = getTransporter()
+  if (!t) return
+  try {
+    await t.verify()
+    console.log('SMTP Connected')
+  } catch (err) {
+    console.error('SMTP verification failed (emails will be skipped, payments unaffected):', err.message || err.message?.code || err)
   }
-});
+}
+
+verifyTransporter()
+
+async function sendViaResend({ to, subject, html, attachments, from }) {
+  const body = {
+    from: from || RESEND_FROM,
+    to,
+    subject,
+    html,
+  }
+  if (Array.isArray(attachments) && attachments.length) {
+    body.attachments = attachments
+  }
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`Resend API error ${res.status}: ${errText}`)
+  }
+  return res.json()
+}
+
+async function sendMail({ to, subject, html, attachments, from }) {
+  if (RESEND_API_KEY) {
+    return sendViaResend({ to, subject, html, attachments, from })
+  }
+  const t = getTransporter()
+  if (!t) {
+    console.warn('Email skipped: EMAIL_USER/EMAIL_PASS not configured (payment unaffected).')
+    return null
+  }
+  return t.sendMail({
+    from: from || EMAIL_USER,
+    to,
+    subject,
+    html,
+    attachments: attachments || [],
+  })
+}
 
 function buildReceiptHtml(booking) {
-  const bookingDate = formatIstDateTime(booking.bookingDate);
+  const bookingDate = formatIstDateTime(booking.bookingDate)
   return `
   <body style="margin:0;padding:0;background-color:#f7e8d0;font-family:Arial,Helvetica,sans-serif;color:#3f2a1a;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -45,6 +116,7 @@ function buildReceiptHtml(booking) {
               <td style="padding:28px 30px 20px;">
                 <h1 style="margin:0;font-size:28px;font-family:'Cinzel',Georgia,serif;color:#5a2d1a;">Booking Confirmed</h1>
                 <p style="margin:16px 0 0;font-size:16px;line-height:1.7;color:#5a2d1a;">Thank you for choosing Vintage Veduka. Your heritage booking is confirmed and your seat has been reserved.</p>
+                <p style="margin:10px 0 0;font-size:14px;line-height:1.6;color:#7d3d24;">Your PDF receipt is attached to this email.</p>
               </td>
             </tr>
             <tr>
@@ -93,7 +165,7 @@ function buildReceiptHtml(booking) {
       </tr>
     </table>
   </body>
-  `;
+  `
 }
 
 function buildKeyValueRow(label, value) {
@@ -102,36 +174,50 @@ function buildKeyValueRow(label, value) {
       <td style="padding:14px 0 14px 0;font-size:14px;color:#5a2d1a;width:170px;font-weight:700;">${label}</td>
       <td style="padding:14px 0 14px 0;font-size:14px;color:#3f2a1a;">${value ?? '--'}</td>
     </tr>
-  `;
+  `
 }
 
-exports.sendCustomerReceipt = async (booking) => {
-  if (!EMAIL_USER || !EMAIL_PASS) return; // skip when not configured
-  const mailOptions = {
-    from: EMAIL_USER,
+exports.sendCustomerReceipt = async (booking, pdfBuffer) => {
+  if (RESEND_API_KEY) {
+    if (!EMAIL_USER && !ADMIN_EMAIL) return
+  } else if (!EMAIL_USER || !EMAIL_PASS) {
+    return
+  }
+
+  const attachments = []
+  if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
+    attachments.push({
+      filename: `VintageVeduka_Receipt_${booking.bookingId}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    })
+  }
+
+  return sendMail({
     to: booking.email,
     subject: `Booking Confirmed - ${booking.bookingId}`,
-    headers: {
-      'X-Priority': '1',
-      Priority: 'urgent',
-      Importance: 'high',
-    },
     html: buildReceiptHtml(booking),
-  };
-  return transporter.sendMail(mailOptions);
-};
+    attachments,
+  })
+}
 
-exports.sendAdminNotification = async (booking) => {
-  if (!EMAIL_USER || !EMAIL_PASS || !ADMIN_EMAIL) return;
-  const mailOptions = {
-    from: EMAIL_USER,
+exports.sendAdminNotification = async (booking, pdfBuffer) => {
+  if (!ADMIN_EMAIL) return
+  if (!RESEND_API_KEY && (!EMAIL_USER || !EMAIL_PASS)) return
+
+  const attachments = []
+  if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
+    attachments.push({
+      filename: `VintageVeduka_Receipt_${booking.bookingId}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    })
+  }
+
+  return sendMail({
     to: ADMIN_EMAIL,
+    replyTo: EMAIL_USER || undefined,
     subject: `New Booking - ${booking.bookingId}`,
-    headers: {
-      'X-Priority': '1',
-      Priority: 'urgent',
-      Importance: 'high',
-    },
     html: `
       <div style="font-family:Arial,Helvetica,sans-serif;color:#3f2a1a;">
         <h2 style="margin-bottom:0.5rem;color:#5a2d1a;">New Vintage Veduka Booking</h2>
@@ -152,6 +238,6 @@ exports.sendAdminNotification = async (booking) => {
         </table>
       </div>
     `,
-  };
-  return transporter.sendMail(mailOptions);
-};
+    attachments,
+  })
+}

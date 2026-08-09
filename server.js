@@ -7,33 +7,65 @@ const paymentRoutes = require('./routes/payment');
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "https://vintageveduka.com",
-    "https://www.vintageveduka.com",
-    "http://localhost:5500",
-    "http://127.0.0.1:5500"
-  ],
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+const NODE_ENV = process.env.NODE_ENV || 'production';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://vintageveduka.com';
 
-app.use(express.json());
+// Production-safe CORS: allow only the real frontend origins.
+const allowedOrigins = [
+  'https://vintageveduka.com',
+  'https://www.vintageveduka.com',
+];
 
-// Serve the static frontend (project root)
-app.use(express.static(path.join(__dirname, '..')));
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
+app.use(express.json({ limit: '64kb' }));
+app.use(express.urlencoded({ extended: true, limit: '64kb' }));
+
+app.disable('x-powered-by');
+
+app.set('trust proxy', 1);
+
+// Health endpoint (matches required contract)
+app.get('/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, service: 'Vintage Veduka Backend' });
+});
 
 // API routes
 app.use('/', paymentRoutes);
 
-// Fallback for client-side routes
-app.get('/health', (req, res) => res.json({ ok: true }));
+// Root informational endpoint
+app.get('/', (req, res) => {
+  res.send('Vintage Veduka Backend is Running 🚀');
+});
+
+// 404 JSON handler for unknown API routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Centralised error handler — never leak stack traces to clients
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.includes('CORS')) {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Vintage Veduka backend listening on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Vintage Veduka backend listening on port ${PORT} (${NODE_ENV})`);
 });
 
-app.get("/", (req, res) => {
-    res.send("Vintage Veduka Backend is Running 🚀");
-});
+module.exports = app;

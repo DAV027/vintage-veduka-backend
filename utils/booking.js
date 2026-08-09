@@ -8,7 +8,7 @@ const LOCK_PATH = path.join(__dirname, '..', 'data', '.booking-id.lock');
 function normalizeBookingRecord(booking, defaults = {}) {
   if (!booking || typeof booking !== 'object') return {};
 
-  const normalized = {
+  return {
     ...booking,
     fullName: booking.fullName || defaults.fullName || '',
     email: booking.email || defaults.email || '',
@@ -19,13 +19,12 @@ function normalizeBookingRecord(booking, defaults = {}) {
     bookingId: booking.bookingId || defaults.bookingId || null,
     orderId: booking.orderId || defaults.orderId || null,
     paymentId: booking.paymentId || defaults.paymentId || null,
+    razorpayPaymentId: booking.razorpayPaymentId || booking.paymentId || defaults.razorpayPaymentId || null,
     paymentStatus: booking.paymentStatus || defaults.paymentStatus || 'created',
     bookingDate: booking.bookingDate || defaults.bookingDate || null,
     eventDate: booking.eventDate ?? defaults.eventDate ?? '22 August',
     venue: booking.venue ?? defaults.venue ?? 'SK Retreat Farmstay',
   };
-
-  return normalized;
 }
 
 async function readAll() {
@@ -44,7 +43,9 @@ async function readAll() {
 
 async function writeAll(items) {
   await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await fs.writeFile(DATA_PATH, JSON.stringify(items, null, 2), 'utf8');
+  const tmpPath = DATA_PATH + '.tmp';
+  await fs.writeFile(tmpPath, JSON.stringify(items, null, 2), 'utf8');
+  await fs.rename(tmpPath, DATA_PATH);
 }
 
 function padNumber(num, size) {
@@ -135,6 +136,19 @@ exports.updateByOrderId = async (orderId, updates) => {
   const items = await readAll();
   const idx = items.findIndex((i) => i.orderId === orderId);
   if (idx === -1) return null;
+
+  // Duplicate payment guard: reject if the payment ID is already used by a different order
+  if (updates.razorpayPaymentId) {
+    const existingPaymentIdx = items.findIndex(
+      (i) => i.orderId !== orderId && i.razorpayPaymentId === updates.razorpayPaymentId
+    );
+    if (existingPaymentIdx !== -1) {
+      const err = new Error(`Payment ID already used by booking ${items[existingPaymentIdx].bookingId}`);
+      err.code = 'DUPLICATE_PAYMENT';
+      throw err;
+    }
+  }
+
   const existing = items[idx] || {};
   const merged = Object.assign({}, existing, updates);
   const normalized = normalizeBookingRecord(merged, {
@@ -156,4 +170,3 @@ exports.getByBookingId = async (bookingId) => {
 };
 
 exports.normalizeBookingRecord = normalizeBookingRecord;
-

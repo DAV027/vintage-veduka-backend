@@ -79,12 +79,18 @@ function addTicketSummaryTable(doc, startY, adults, children, amount) {
 }
 
 async function generateReceiptPdf(booking) {
-  return new Promise(async (resolve, reject) => {
+  // Pre-generate the QR code so that the PDFKit document stream never waits on a promise.
+  const qrString = `Booking:${booking.bookingId} | Payment:${booking.paymentId}`;
+  const qrDataUrl = await QRCode.toDataURL(qrString, { margin: 1, color: { dark: '#5A2D1A', light: '#ffffff' } });
+  const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+
+  return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: 'A4', margins: pageMargins });
       const chunks = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
 
       addWatermark(doc);
       addHeader(doc);
@@ -124,10 +130,7 @@ async function generateReceiptPdf(booking) {
       addTicketSummaryTable(doc, currentY, booking.adults || 0, booking.children || 0, booking.amount || 0);
       currentY += 120;
 
-      const qrString = `Booking:${booking.bookingId} | Payment:${booking.paymentId}`;
-      const qrDataUrl = await QRCode.toDataURL(qrString, { margin: 1, color: { dark: '#5A2D1A', light: '#ffffff' } });
-      const qrImage = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-      doc.image(Buffer.from(qrImage, 'base64'), pageMargins.left, currentY, { width: 110, height: 110 });
+      doc.image(Buffer.from(qrBase64, 'base64'), pageMargins.left, currentY, { width: 110, height: 110 });
 
       doc.font('Helvetica-Bold').fontSize(12).fillColor('#5A2D1A');
       doc.text('Scan for verification', pageMargins.left + 130, currentY + 38);
