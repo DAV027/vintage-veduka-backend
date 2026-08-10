@@ -62,9 +62,9 @@ function addTicketSummaryTable(doc, startY, adults, children, amount) {
     .stroke('#D4AF37');
 
   const dataRows = [
-    { label: 'Adults', value: adults, price: '₹500', total: `₹${adults * 500}` },
-    { label: 'Children', value: children, price: '₹200', total: `₹${children * 200}` },
-    { label: 'Grand Total', value: '', price: '', total: `₹${amount}` },
+    { label: 'Adults', value: adults, price: 'Rs.500', total: `Rs.${adults * 500}` },
+    { label: 'Children', value: children, price: 'Rs.200', total: `Rs.${children * 200}` },
+    { label: 'Grand Total', value: '', price: '', total: `Rs.${amount}` },
   ];
 
   let currentY = startY + 32;
