@@ -67,7 +67,7 @@ function addTicketSummaryTable(doc, startY, adults, children, amount) {
     { label: 'Grand Total', value: '', price: '', total: `₹${amount}` },
   ];
 
-  let currentY = startY + 10;
+  let currentY = startY + 32;
   doc.font('Helvetica').fontSize(10);
   dataRows.forEach((row, index) => {
     const rowTop = currentY + index * rowHeight;
