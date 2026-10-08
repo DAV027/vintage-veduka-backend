@@ -232,28 +232,27 @@ exports.verifyPayment = async (req, res) => {
       venue: VENUE,
     });
 
-    // Send follow-up communications in the background.
-    // Email failure MUST NEVER fail the payment response.
-    setImmediate(() => {
-      (async () => {
-        let pdfBuffer = null;
-        try {
-          pdfBuffer = await pdfGenerator.generateReceiptPdf(finalizedBooking);
-        } catch (pdfErr) {
-          console.error('PDF generation error (email will be sent without attachment):', pdfErr.message || pdfErr);
-        }
-        try {
-          await mailer.sendCustomerReceipt(finalizedBooking, pdfBuffer);
-        } catch (mailErr) {
-          console.error('Customer mail error (payment remains successful):', mailErr.message || mailErr);
-        }
-        try {
-          await mailer.sendAdminNotification(finalizedBooking, pdfBuffer);
-        } catch (mailErr) {
-          console.error('Admin mail error (payment remains successful):', mailErr.message || mailErr);
-        }
-      })();
-    });
+    let pdfBuffer = null;
+    try {
+      pdfBuffer = await pdfGenerator.generateReceiptPdf(finalizedBooking);
+    } catch (pdfErr) {
+      console.error('PDF generation error (email will be sent without attachment):', pdfErr.message || pdfErr);
+    }
+
+    // Await Resend's response so a process restart cannot discard these sends.
+    // Email failures MUST NEVER change the already-captured payment result.
+    const emailResults = await Promise.allSettled([
+      mailer.sendCustomerReceipt(finalizedBooking, pdfBuffer),
+      mailer.sendAdminNotification(finalizedBooking, pdfBuffer),
+    ]);
+    for (const [index, result] of emailResults.entries()) {
+      const recipientType = index === 0 ? 'Customer' : 'Admin';
+      if (result.status === 'rejected') {
+        console.error(`${recipientType} mail error (payment remains successful):`, result.reason?.message || result.reason);
+      } else if (!result.value) {
+        console.error(`${recipientType} email was not accepted by Resend (payment remains successful).`);
+      }
+    }
 
     res.json({ success: true, bookingId: finalizedBooking.bookingId, booking: finalizedBooking });
   } catch (err) {

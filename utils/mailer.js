@@ -215,6 +215,10 @@ exports.sendCustomerReceipt = async (booking, pdfBuffer) => {
       html: buildReceiptHtml(booking),
       attachments: buildAttachments(booking, pdfBuffer),
     });
+    if (result.error || !result.data?.id) {
+      console.error('Customer email was not accepted by Resend:', safeErr(result.error || 'Missing email ID in Resend response.'));
+      return null;
+    }
     console.log(`Customer email sent to ${booking.email} for ${booking.bookingId}.`);
     return result;
   } catch (err) {
@@ -247,6 +251,10 @@ exports.sendAdminNotification = async (booking, pdfBuffer) => {
       html: buildAdminHtml(booking),
       attachments: buildAttachments(booking, pdfBuffer),
     });
+    if (result.error || !result.data?.id) {
+      console.error('Admin email was not accepted by Resend:', safeErr(result.error || 'Missing email ID in Resend response.'));
+      return null;
+    }
     console.log(`Admin email sent to ${ADMIN_EMAIL} for ${booking.bookingId}.`);
     return result;
   } catch (err) {
