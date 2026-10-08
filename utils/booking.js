@@ -22,8 +22,10 @@ function normalizeBookingRecord(booking, defaults = {}) {
     razorpayPaymentId: booking.razorpayPaymentId || booking.paymentId || defaults.razorpayPaymentId || null,
     paymentStatus: booking.paymentStatus || defaults.paymentStatus || 'created',
     bookingDate: booking.bookingDate || defaults.bookingDate || null,
-    eventDate: booking.eventDate ?? defaults.eventDate ?? '22 August',
-    venue: booking.venue ?? defaults.venue ?? 'SK Retreat Farmstay',
+    eventDate: booking.eventDate ?? defaults.eventDate ?? '31 October 2026',
+    eventTime: booking.eventTime ?? defaults.eventTime ?? '2:00 PM – 8:00 PM',
+    venue: booking.venue ?? defaults.venue ?? 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad',
+    items: Array.isArray(booking.items) ? booking.items : (Array.isArray(defaults.items) ? defaults.items : []),
   };
 }
 
@@ -115,8 +117,9 @@ exports.generateBookingId = async () => {
 exports.saveDraft = async (draft) => {
   const items = await readAll();
   const normalizedDraft = normalizeBookingRecord(draft, {
-    eventDate: '22 August',
-    venue: 'SK Retreat Farmstay',
+    eventDate: '31 October 2026',
+    eventTime: '2:00 PM – 8:00 PM',
+    venue: 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad',
   });
   items.push(normalizedDraft);
   await writeAll(items);
@@ -127,8 +130,9 @@ exports.getByOrderId = async (orderId) => {
   const items = await readAll();
   const booking = items.find((i) => i.orderId === orderId) || null;
   return booking ? normalizeBookingRecord(booking, {
-    eventDate: '22 August',
-    venue: 'SK Retreat Farmstay',
+    eventDate: '31 October 2026',
+    eventTime: '2:00 PM – 8:00 PM',
+    venue: 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad',
   }) : null;
 };
 
@@ -152,8 +156,9 @@ exports.updateByOrderId = async (orderId, updates) => {
   const existing = items[idx] || {};
   const merged = Object.assign({}, existing, updates);
   const normalized = normalizeBookingRecord(merged, {
-    eventDate: existing.eventDate ?? '22 August',
-    venue: existing.venue ?? 'SK Retreat Farmstay',
+    eventDate: existing.eventDate ?? '31 October 2026',
+    eventTime: existing.eventTime ?? '2:00 PM – 8:00 PM',
+    venue: existing.venue ?? 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad',
   });
   items[idx] = normalized;
   await writeAll(items);
@@ -164,8 +169,9 @@ exports.getByBookingId = async (bookingId) => {
   const items = await readAll();
   const booking = items.find((i) => i.bookingId === bookingId) || null;
   return booking ? normalizeBookingRecord(booking, {
-    eventDate: '22 August',
-    venue: 'SK Retreat Farmstay',
+    eventDate: '31 October 2026',
+    eventTime: '2:00 PM – 8:00 PM',
+    venue: 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad',
   }) : null;
 };
 

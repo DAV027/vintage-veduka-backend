@@ -20,10 +20,10 @@ if (!resend) {
 function escapeHtml(value) {
   if (value === null || value === undefined) return '--';
   return String(value)
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -35,6 +35,22 @@ function buildKeyValueRow(label, value) {
       <td style="padding:14px 0 14px 0;font-size:14px;color:#3f2a1a;">${safe}</td>
     </tr>
   `;
+}
+
+function buildActivityRows(items = []) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return buildKeyValueRow('Selected activities', 'None');
+  }
+
+  return items.map((item) => {
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(item.unitPrice || 0);
+    const subtotal = Number(item.subtotal || quantity * unitPrice);
+    return buildKeyValueRow(
+      `${escapeHtml(item.name || item.id || 'Activity')} × ${quantity}`,
+      `₹${subtotal.toLocaleString('en-IN')}`,
+    );
+  }).join('');
 }
 
 function buildReceiptHtml(booking) {
@@ -70,11 +86,11 @@ function buildReceiptHtml(booking) {
                   ${buildKeyValueRow('Name', booking.fullName)}
                   ${buildKeyValueRow('Email', booking.email)}
                   ${buildKeyValueRow('Phone', booking.phone)}
-                  ${buildKeyValueRow('Adults', booking.adults)}
-                  ${buildKeyValueRow('Children', booking.children)}
                   ${buildKeyValueRow('Total Paid', '\u20B9' + booking.amount)}
-                  ${buildKeyValueRow('Event Date', booking.eventDate || '22 August')}
-                  ${buildKeyValueRow('Venue', booking.venue || 'SK Retreat Farmstay')}
+                  ${buildKeyValueRow('Event Date', booking.eventDate || '31 October 2026')}
+                  ${buildKeyValueRow('Event Time', booking.eventTime || '2:00 PM – 8:00 PM')}
+                  ${buildKeyValueRow('Venue', booking.venue || 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad')}
+                  ${buildActivityRows(booking.items)}
                   ${buildKeyValueRow('Payment ID', booking.paymentId)}
                   ${buildKeyValueRow('Order ID', booking.orderId)}
                   ${buildKeyValueRow('Booking Date', bookingDate)}
@@ -87,7 +103,7 @@ function buildReceiptHtml(booking) {
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
                   <tr>
                     <td style="vertical-align:top;padding:0 8px 0 0;width:50px;">&#128205;</td>
-                    <td style="font-size:14px;color:#5a2d1a;line-height:1.7;">SK Retreat Farmstay</td>
+                    <td style="font-size:14px;color:#5a2d1a;line-height:1.7;">Saptaparni, Banjara Hills, Road No. 8, Hyderabad</td>
                   </tr>
                   <tr>
                     <td style="vertical-align:top;padding:14px 8px 0 0;">&#9993;&#65039;</td>
@@ -143,11 +159,11 @@ function buildAdminHtml(booking) {
                   ${buildKeyValueRow('Name', booking.fullName)}
                   ${buildKeyValueRow('Email', booking.email)}
                   ${buildKeyValueRow('Phone', booking.phone)}
-                  ${buildKeyValueRow('Adults', booking.adults)}
-                  ${buildKeyValueRow('Children', booking.children)}
                   ${buildKeyValueRow('Total Paid', '\u20B9' + booking.amount)}
                   ${buildKeyValueRow('Event Date', booking.eventDate)}
+                  ${buildKeyValueRow('Event Time', booking.eventTime)}
                   ${buildKeyValueRow('Venue', booking.venue)}
+                  ${buildActivityRows(booking.items)}
                   ${buildKeyValueRow('Payment ID', booking.paymentId)}
                   ${buildKeyValueRow('Order ID', booking.orderId)}
                   ${buildKeyValueRow('Booking Date', formatIstDateTime(booking.bookingDate))}

@@ -4,23 +4,15 @@ const bookingUtil = require('../utils/booking');
 const mailer = require('../utils/mailer');
 const pdfGenerator = require('../utils/pdfGenerator');
 const { toIstIso } = require('../utils/time');
+const { priceBookingItems } = require('../utils/products');
 const https = require('https');
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || '';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '';
 
-const adultPrice = 500; // INR
-const childPrice = 200; // INR
-const MAX_TICKETS = 20;
-
-const EVENT_DATE = '22 August';
-const VENUE = 'SK Retreat Farmstay';
-
-function calculateAmount(adults, children) {
-  const a = Math.trunc(Number(adults) || 0);
-  const c = Math.trunc(Number(children) || 0);
-  return a * adultPrice + c * childPrice;
-}
+const EVENT_DATE = '31 October 2026';
+const EVENT_TIME = '2:00 PM – 8:00 PM';
+const VENUE = 'Saptaparni, Banjara Hills, Road No. 8, Hyderabad';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\d{10}$/;
@@ -31,17 +23,11 @@ function sanitizeString(value, maxLen) {
   return value.trim().slice(0, maxLen);
 }
 
-function validateBookingInput({ fullName, email, phone, adults, children }) {
+function validateBookingInput({ fullName, email, phone }) {
   const errors = [];
   if (!fullName || !nameRegex.test(fullName)) errors.push('Invalid full name.');
   if (!email || !emailRegex.test(email)) errors.push('Invalid email address.');
   if (!phone || !phoneRegex.test(phone)) errors.push('Invalid mobile number (10 digits required).');
-
-  const a = Math.trunc(Number(adults) || 0);
-  const c = Math.trunc(Number(children) || 0);
-  if (!Number.isInteger(a) || a < 0 || a > MAX_TICKETS) errors.push('Invalid number of adults.');
-  if (!Number.isInteger(c) || c < 0 || c > MAX_TICKETS) errors.push('Invalid number of children.');
-  if (a + c <= 0) errors.push('Select at least one ticket.');
   return errors;
 }
 
@@ -87,22 +73,20 @@ function razorpayRequest(options, postData) {
 
 exports.createOrder = async (req, res) => {
   try {
+    const fullName = sanitizeString(req.body.fullName, 80);
+    const email = sanitizeString(req.body.email, 254).toLowerCase();
+    const phone = sanitizeString(req.body.phone, 15);
+    const { items, amount, errors: itemErrors } = priceBookingItems(req.body.items);
+
+    const errors = [...validateBookingInput({ fullName, email, phone }), ...itemErrors];
+    if (errors.length) return res.status(400).json({ error: errors.join(' ') });
+
+    if (amount <= 0) return res.status(400).json({ error: 'Total amount must be greater than 0.' });
+
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
       console.error('createOrder: missing Razorpay credentials');
       return res.status(503).json({ error: 'Payment gateway not configured.' });
     }
-
-    const fullName = sanitizeString(req.body.fullName, 80);
-    const email = sanitizeString(req.body.email, 254).toLowerCase();
-    const phone = sanitizeString(req.body.phone, 15);
-    const adults = req.body.adults;
-    const children = req.body.children;
-
-    const errors = validateBookingInput({ fullName, email, phone, adults, children });
-    if (errors.length) return res.status(400).json({ error: errors.join(' ') });
-
-    const amount = calculateAmount(adults, children);
-    if (amount <= 0) return res.status(400).json({ error: 'Total amount must be greater than 0.' });
 
     const shortId = uuidv4().replace(/-/g, '').slice(0, 32);
     const receipt = `rcpt_${shortId}`;
@@ -121,8 +105,7 @@ exports.createOrder = async (req, res) => {
       fullName,
       email,
       phone,
-      adults: Math.trunc(Number(adults) || 0),
-      children: Math.trunc(Number(children) || 0),
+      items,
       amount,
       orderId: order.id,
       orderAmountExpected: order.amount,
@@ -130,6 +113,7 @@ exports.createOrder = async (req, res) => {
       paymentStatus: 'created',
       bookingDate: null,
       eventDate: EVENT_DATE,
+      eventTime: EVENT_TIME,
       venue: VENUE,
     };
 
@@ -151,18 +135,29 @@ exports.verifyPayment = async (req, res) => {
   try {
     const razorpay_order_id = sanitizeString(req.body.razorpay_order_id, 64);
     const razorpay_payment_id = sanitizeString(req.body.razorpay_payment_id, 64);
-    let razorpay_signature = sanitizeString(req.body.razorpay_signature, 128);
+    const razorpay_signature = sanitizeString(req.body.razorpay_signature, 128);
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ error: 'Missing payment verification fields.' });
     }
 
     // Server-side signature verification
+    if (!RAZORPAY_KEY_SECRET) {
+      console.error('verifyPayment: Razorpay credentials are not configured');
+      return res.status(503).json({ error: 'Payment gateway not configured.' });
+    }
+
     const hmac = crypto.createHmac('sha256', RAZORPAY_KEY_SECRET);
     hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
     const generatedSignature = hmac.digest('hex');
 
-    if (!crypto.timingSafeEqual(Buffer.from(generatedSignature, 'hex'), Buffer.from(razorpay_signature, 'hex'))) {
+    const providedSignature = /^[a-fA-F0-9]{64}$/.test(razorpay_signature)
+      ? Buffer.from(razorpay_signature, 'hex')
+      : Buffer.alloc(0);
+    if (
+      providedSignature.length !== 32
+      || !crypto.timingSafeEqual(Buffer.from(generatedSignature, 'hex'), providedSignature)
+    ) {
       console.error('verifyPayment: invalid signature for order', razorpay_order_id);
       return res.status(400).json({ error: 'Payment signature verification failed.' });
     }
@@ -174,7 +169,11 @@ exports.verifyPayment = async (req, res) => {
     // Prevent duplicate bookings for the same Razorpay payment
     if (booking.paymentId === razorpay_payment_id && booking.paymentStatus === 'paid') {
       console.warn('verifyPayment: duplicate verification for already-paid booking', booking.bookingId);
-      const finalized = bookingUtil.normalizeBookingRecord(booking, { eventDate: EVENT_DATE, venue: VENUE });
+      const finalized = bookingUtil.normalizeBookingRecord(booking, {
+        eventDate: EVENT_DATE,
+        eventTime: EVENT_TIME,
+        venue: VENUE,
+      });
       return res.json({ success: true, bookingId: finalized.bookingId, booking: finalized, duplicate: true });
     }
 
@@ -229,6 +228,7 @@ exports.verifyPayment = async (req, res) => {
 
     const finalizedBooking = bookingUtil.normalizeBookingRecord(saved, {
       eventDate: EVENT_DATE,
+      eventTime: EVENT_TIME,
       venue: VENUE,
     });
 
@@ -291,6 +291,7 @@ exports.getReceipt = async (req, res) => {
 
     const normalizedBooking = bookingUtil.normalizeBookingRecord(booking, {
       eventDate: EVENT_DATE,
+      eventTime: EVENT_TIME,
       venue: VENUE,
     });
 
