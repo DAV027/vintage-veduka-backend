@@ -40,6 +40,10 @@ function addKeyValue(doc, label, value, y) {
   doc.text(`${value}`, pageMargins.left + 140, y, { width: 396 });
 }
 
+function formatPdfCurrency(value) {
+  return `INR ${Number(value || 0).toLocaleString('en-IN')}`;
+}
+
 function addItemSummaryTable(doc, startY, items, amount) {
   const rowHeight = 24;
   const cellX = [pageMargins.left, 240, 340, 460];
@@ -64,10 +68,10 @@ function addItemSummaryTable(doc, startY, items, amount) {
     ...items.map((item) => ({
       label: item.name || item.id || 'Item',
       quantity: Number(item.quantity || 0),
-      price: `₹${Number(item.unitPrice || 0).toLocaleString('en-IN')}`,
-      total: `₹${Number(item.subtotal || 0).toLocaleString('en-IN')}`,
+      price: formatPdfCurrency(item.unitPrice),
+      total: formatPdfCurrency(item.subtotal),
     })),
-    { label: 'Total Amount', quantity: '', price: '', total: `₹${Number(amount || 0).toLocaleString('en-IN')}` },
+    { label: 'Total Amount', quantity: '', price: '', total: formatPdfCurrency(amount) },
   ];
 
   let currentY = startY + 32;
@@ -149,4 +153,4 @@ async function generateReceiptPdf(booking) {
   });
 }
 
-module.exports = { generateReceiptPdf };
+module.exports = { formatPdfCurrency, generateReceiptPdf };
