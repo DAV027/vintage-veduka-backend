@@ -49,7 +49,7 @@ function addItemSummaryTable(doc, startY, items, amount) {
   const cellX = [pageMargins.left, 240, 340, 460];
   const tableWidth = 612 - pageMargins.left - pageMargins.right;
 
-  doc.roundedRect(pageMargins.left - 4, startY - 6, tableWidth + 8, rowHeight * Math.max(items.length + 2, 4) + 12, 12)
+  doc.roundedRect(pageMargins.left - 4, startY - 6, tableWidth + 8, rowHeight * (items.length + 2) + 8, 12)
     .fillOpacity(0.06)
     .fill('#5A2D1A')
     .fillOpacity(1);
@@ -140,7 +140,7 @@ async function generateReceiptPdf(booking) {
       currentY += 32;
       const items = Array.isArray(booking.items) ? booking.items : [];
       addItemSummaryTable(doc, currentY, items, booking.amount || 0);
-      currentY += 32 + (items.length + 1) * 24 + 6;
+      currentY += 38 + (items.length + 1) * 24 + 6;
 
       doc.font('Helvetica').fontSize(10).fillColor('#3F2A1A');
       doc.text('Thank you for choosing Vintage Veduka.', pageMargins.left, currentY, { width: 500 });
