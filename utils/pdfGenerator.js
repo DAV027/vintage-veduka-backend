@@ -41,7 +41,7 @@ function addKeyValue(doc, label, value, y) {
 }
 
 function formatPdfCurrency(value) {
-  return `INR ${Number(value || 0).toLocaleString('en-IN')}`;
+  return `RS ${Number(value || 0).toLocaleString('en-IN')}`;
 }
 
 function addItemSummaryTable(doc, startY, items, amount) {
