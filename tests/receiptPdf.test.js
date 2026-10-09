@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { generateReceiptPdf } = require('../utils/pdfGenerator');
+const { formatPdfCurrency, generateReceiptPdf } = require('../utils/pdfGenerator');
+
+test('PDF currency uses a font-safe INR prefix and Indian digit grouping', () => {
+  assert.equal(formatPdfCurrency(500), 'INR 500');
+  assert.equal(formatPdfCurrency(1400), 'INR 1,400');
+  assert.equal(formatPdfCurrency(0), 'INR 0');
+});
 
 test('activity booking receipt remains a single page for the full selection', async () => {
   const items = Array.from({ length: 7 }, (_, index) => ({
