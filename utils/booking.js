@@ -1,8 +1,9 @@
-const { randomUUID } = require('crypto');
+const { randomInt } = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 
 const DATA_PATH = path.join(__dirname, '..', 'data', 'bookings.json');
+const reservedBookingIds = new Set();
 
 function normalizeBookingRecord(booking, defaults = {}) {
   if (!booking || typeof booking !== 'object') return {};
@@ -49,7 +50,27 @@ async function writeAll(items) {
   await fs.rename(tmpPath, DATA_PATH);
 }
 
-exports.generateBookingId = async () => `VV${randomUUID().replace(/-/g, '').toUpperCase()}`;
+exports.generateBookingId = async () => {
+  const bookings = await readAll();
+  const existingIds = new Set(
+    bookings
+      .map((booking) => booking.bookingId)
+      .filter((bookingId) => typeof bookingId === 'string')
+      .map((bookingId) => bookingId.toUpperCase()),
+  );
+
+  for (let attempt = 0; attempt < 1_000_000; attempt += 1) {
+    const bookingId = `vv${String(randomInt(0, 1_000_000)).padStart(6, '0')}`;
+    const normalizedId = bookingId.toUpperCase();
+    if (!existingIds.has(normalizedId) && !reservedBookingIds.has(normalizedId)) {
+      reservedBookingIds.add(normalizedId);
+      return bookingId;
+    }
+  }
+
+  throw new Error('Unable to generate a unique booking ID: all IDs are in use.');
+};
+exports.isValidBookingId = (bookingId) => /^VV(?:\d{6}|[0-9A-F]{32})$/i.test(bookingId);
 
 exports.saveDraft = async (draft) => {
   const items = await readAll();
@@ -104,7 +125,9 @@ exports.updateByOrderId = async (orderId, updates) => {
 
 exports.getByBookingId = async (bookingId) => {
   const items = await readAll();
-  const booking = items.find((i) => i.bookingId === bookingId) || null;
+  const booking = items.find(
+    (item) => typeof item.bookingId === 'string' && item.bookingId.toUpperCase() === bookingId.toUpperCase(),
+  ) || null;
   return booking ? normalizeBookingRecord(booking, {
     eventDate: '31 October 2026',
     eventTime: '2:00 PM – 8:00 PM',
