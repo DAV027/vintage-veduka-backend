@@ -263,8 +263,8 @@ exports.verifyPayment = async (req, res) => {
 
 exports.getBooking = async (req, res) => {
   try {
-    const bookingId = sanitizeString(req.params.bookingId, 20);
-    if (!/^VV\d{6}$/.test(bookingId)) return res.status(400).json({ error: 'Invalid booking ID.' });
+    const bookingId = sanitizeString(req.params.bookingId, 34);
+    if (!bookingUtil.isValidBookingId(bookingId)) return res.status(400).json({ error: 'Invalid booking ID.' });
     const booking = await bookingUtil.getByBookingId(bookingId);
     if (!booking) return res.status(404).json({ error: 'Booking not found.' });
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -279,8 +279,8 @@ exports.getBooking = async (req, res) => {
 
 exports.getReceipt = async (req, res) => {
   try {
-    const bookingId = sanitizeString(req.params.bookingId, 20);
-    if (!/^VV\d{6}$/.test(bookingId)) return res.status(400).json({ error: 'Invalid booking ID.' });
+    const bookingId = sanitizeString(req.params.bookingId, 34);
+    if (!bookingUtil.isValidBookingId(bookingId)) return res.status(400).json({ error: 'Invalid booking ID.' });
 
     const booking = await bookingUtil.getByBookingId(bookingId);
     if (!booking) return res.status(404).json({ error: 'Booking not found.' });
